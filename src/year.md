@@ -10,6 +10,7 @@ How the consensus for a single year moved, week by week, from the first survey t
 import {day, diff, diffUnit, lowerFirst, rows, value} from "./components/format.js";
 import {indicatorPicker} from "./components/indicator.js";
 import {errorLimit, errorScale, palette} from "./components/palette.js";
+import {eventMarks} from "./components/charts.js";
 
 const meta = await FileAttachment("data/indicators.json").json();
 const forecasts = rows(await FileAttachment("data/forecasts.parquet").parquet());
@@ -80,7 +81,8 @@ function pathChart(width) {
   const band = path.filter((d) => d.std != null);
   const marks = [
     Plot.rectX([0], {x1: new Date(Date.UTC(year, 0, 1)), x2: yearEnd, fill: "var(--theme-foreground)", fillOpacity: 0.04}),
-    Plot.text([String(year)], {x: new Date(Date.UTC(year, 6, 1)), frameAnchor: "top", dy: 4, fill: "var(--theme-foreground-muted)"})
+    Plot.text([String(year)], {x: new Date(Date.UTC(year, 6, 1)), frameAnchor: "top", dy: 26, fill: "var(--theme-foreground-muted)"}),
+    ...eventMarks([start, end], {width})
   ];
   if (o.goal != null) {
     marks.push(
@@ -120,7 +122,7 @@ function pathChart(width) {
     height: 400,
     marginLeft: 48,
     x: {type: "utc", domain: [start, end], label: null},
-    y: {grid: true, label: `${ind.name} (${u})`, zero: id !== "fx", nice: true},
+    y: {grid: true, label: `${ind.name} (${u})`, zero: id !== "fx", nice: true, insetTop: 22},
     marks
   });
 }
@@ -135,7 +137,7 @@ function swatch(color, label, kind = "line", dash = false) {
 
 <div class="card">
   <h2>${ind.name} ${year}: the weekly consensus</h2>
-  <h3>Band: ±1 standard deviation across forecasters. Shaded: the target year itself.</h3>
+  <h3>Band: ±1 standard deviation across forecasters. Shaded: the target year itself. Dotted lines: elections and shocks.</h3>
   ${resize((width) => pathChart(width))}
   <div class="legend">
     ${swatch(pal.consensus, "Consensus (median)")}
@@ -181,11 +183,3 @@ const limit = errorLimit(monthly.filter((d) => d.indicator === id).map((d) => d.
     return chart;
   })}
 </div>
-
-<style>
-.big { font-size: 1.9rem; font-weight: 700; line-height: 1.2; font-variant-numeric: tabular-nums; }
-.big.under { color: var(--theme-red); }
-.big.over { color: var(--theme-blue); }
-.card p { margin: 0.35rem 0 0; }
-.legend { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 0.85rem; color: var(--theme-foreground-muted); }
-</style>

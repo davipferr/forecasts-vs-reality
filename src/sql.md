@@ -7,13 +7,17 @@ title: SQL console
 The Parquet files behind every chart are loaded into **DuckDB running in your browser** (DuckDB-WASM). Nothing is sent to a server: ask your own questions.
 
 ```js
+// Tables are decoded to Arrow first (parquet-wasm, the same reader the other pages
+// use, so the files are already cached) and copied into DuckDB, instead of letting
+// DuckDB-WASM read the Parquet files itself: its HTTP range requests break on
+// GitHub Pages, which gzips .parquet responses.
 const db = DuckDBClient.of({
-  forecasts: FileAttachment("data/forecasts.parquet"),
-  top5: FileAttachment("data/top5.parquet"),
-  monthly: FileAttachment("data/monthly.parquet"),
-  outcomes: FileAttachment("data/outcomes.parquet"),
-  known: FileAttachment("data/known.parquet"),
-  horizon_stats: FileAttachment("data/horizon-stats.parquet")
+  forecasts: FileAttachment("data/forecasts.parquet").parquet(),
+  top5: FileAttachment("data/top5.parquet").parquet(),
+  monthly: FileAttachment("data/monthly.parquet").parquet(),
+  outcomes: FileAttachment("data/outcomes.parquet").parquet(),
+  known: FileAttachment("data/known.parquet").parquet(),
+  horizon_stats: FileAttachment("data/horizon-stats.parquet").parquet()
 });
 ```
 

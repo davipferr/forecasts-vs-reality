@@ -53,4 +53,28 @@ const notes = meta.indicators.flatMap((d) => d.notes.map((n) => ({name: d.name, 
 - **Selic outcomes** are the Copom target on 31 December (series 432).
 - **Dollar outcomes:** in years like 2016 the last forecast (3.35) matches the December average (3.35), not the 31 December rate (3.26), so the survey answer is treated as a December average.
 
+## Data version
+
+Every build publishes a manifest with the pipeline code version, when each API response was downloaded and the row counts of every table. It is also served at a fixed address, `/manifest.json`, so each build can be compared with the previous one before it goes live.
+
+```js
+const manifest = await FileAttachment("data/manifest.json").json();
+```
+
+<p class="muted">Pipeline code: <code>${manifest.pipeline_code}</code>${manifest.commit ? html` · commit <a href=${`https://github.com/davipferr/inflation-forecasts-vs-reality/commit/${manifest.commit}`}><code>${manifest.commit.slice(0, 7)}</code></a>` : ""}.</p>
+
+```js
+Inputs.table(manifest.sources, {
+  columns: ["name", "downloaded_at"],
+  header: {name: "Source", downloaded_at: "Downloaded"},
+  format: {
+    name: (d, i, data) => html`<a href=${data[i].url}>${d}</a>`,
+    downloaded_at: (d) => (d ? new Date(d).toLocaleString("en", {dateStyle: "medium", timeStyle: "short"}) : "—")
+  },
+  layout: "auto",
+  select: false,
+  rows: 20
+})
+```
+
 <p class="muted">Data generated ${new Date(meta.generatedAt).toLocaleString("en", {dateStyle: "medium", timeStyle: "short"})}. Not affiliated with the Banco Central do Brasil.</p>

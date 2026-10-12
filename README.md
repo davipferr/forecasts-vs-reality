@@ -46,17 +46,20 @@ Banco Central (cached in `data_cache/`, git-ignored) and takes under a minute.
 
 ```
 pipeline/            Python package
-  http.py            cached GET with retries (Olinda needs %20, not "+", for spaces)
+  http.py            cached GET (one shared connection) with retries (Olinda needs %20, not "+", for spaces)
+  schema.py          fails fast with a clear message when an API renames a field or returns nothing
   bcb.py             Olinda OData (Focus) + SGS clients; daily SGS series fetched in 10-year windows
   actuals.py         outcomes, and point-in-time "what was already published" series
   indicators.py      the four indicators: Focus name, outcome, labels, CMN targets
   forecasts.py       horizons, weekly/monthly sampling, scoring, stats by horizon
   frames.py          cleaned frames memoised as Parquet, shared across loaders
   io.py              stdout writers; casts int64 -> int32 so JS doesn't get BigInt
+  manifest.py        data manifest (sources, row counts, headline numbers) and build-to-build comparison
 src/data/*.py        Framework data loaders (thin; run via `uv run`, see observablehq.config.js)
-src/components/      formatting, palette, indicator picker, insight sentences
+src/components/      formatting, palette, chart helpers (event markers, mini columns), indicator picker, insight sentences
+src/style.css        theme (light/dark), typography and shared components
 src/*.md             pages
-tests/               offline tests for cleaning, horizons and scoring
+tests/               offline tests for parsing, horizons, scoring, HTTP cache, frames and manifest
 ```
 
 Data files:
@@ -69,7 +72,8 @@ Data files:
 | `outcomes.parquet` | ~220 | What happened, plus the CMN target and tolerance (IPCA) |
 | `known.parquet` | ~1k | The naive benchmark over time |
 | `horizon-stats.parquet` | ~250 | Bias, MAE, RMSE by horizon, with benchmark MAEs |
-| `indicators.json` | | Labels, notes, headline numbers, build time |
+| `indicators.json` | | Labels, notes, headline numbers, every year's miss one year ahead, build time |
+| `manifest.json` | | Pipeline code version, download time of each API response, row counts (see below) |
 
 ## Messy-data problems handled
 
@@ -88,12 +92,36 @@ Data files:
 ## Refreshing data
 
 Framework caches each loader's output in `src/.observablehq/cache` and only reruns a loader when its own file
-changes. After changing code in `pipeline/`, run `npm run clean` to force a rebuild (it clears Framework's loader
-cache and the memoised frames in `data_cache/frames`, but keeps raw downloads). Raw API responses expire after
-12 hours.
+changes. The memoised frames in `data_cache/frames` are keyed by a hash of the `pipeline/` source, so they rebuild
+automatically after any code change (also in CI, where `data_cache/` is restored from the previous run).
+Framework's own loader cache doesn't see `pipeline/` changes, though: locally, run `npm run clean` to force the
+loaders to rerun (it keeps raw downloads). Raw API responses expire after 12 hours, except the closed 10-year SGS
+windows, which never change and are kept forever.
+
+## Data manifest
+
+Each build writes `manifest.json`: the pipeline code version, the commit, when each API response was downloaded,
+row counts per table and indicator, and the headline numbers. `npm run build` copies it to a stable path,
+`dist/manifest.json`, so it is served at `<site>/manifest.json`.
+
+In CI, before deploying, the workflow downloads the live manifest and runs
+
+```bash
+uv run python -m pipeline.manifest compare previous-manifest.json dist/manifest.json
+```
+
+The changed metrics go to the job summary. Row counts that drop by more than 10 %, counts that disappear (e.g. a
+whole indicator) and removed output columns become warnings; changes in the headline numbers (e.g. after an IBGE
+GDP revision) are listed but not flagged. Add `--strict` in the workflow to block the deploy on warnings.
+
+## Deploying
+
+`.github/workflows/deploy.yml` runs the tests, builds the site and publishes it to GitHub Pages on every push to
+`main`, every Monday after the Focus survey is released, and on demand. Enable it once under
+*Settings → Pages → Source: GitHub Actions*.
 
 ## Tests
 
 ```bash
-uv run pytest
+uv run python -m pytest
 ```

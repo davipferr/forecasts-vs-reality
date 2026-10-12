@@ -1,0 +1,174 @@
+/* Site theme: Framework's default layout with air (light) / near-midnight (dark),
+   following the system setting exactly as `theme: ["air", "near-midnight", "alt",
+   "wide"]` did, plus our own typography, accent and components on top. */
+@import url("observablehq:default.css");
+@import url("observablehq:theme-air.css") (prefers-color-scheme: light);
+@import url("observablehq:theme-near-midnight.css") (prefers-color-scheme: dark);
+@import url("observablehq:theme-alt.css");
+@import url("observablehq:theme-wide.css");
+
+:root {
+  --sans-serif: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --serif: "Source Serif 4", "Iowan Old Style", Georgia, serif;
+  --font-big: 600 34px/1.05 var(--sans-serif);
+  /* Accent = slot 1 of the chart palette (components/palette.js), so links and
+     focus rings share the error scale's blue. */
+  --theme-foreground-focus: #2a78d6;
+  /* Error colours, matching palette.diverging: too low = red, too high = blue. */
+  --under: #e34948;
+  --over: #2a78d6;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --theme-foreground-focus: #3987e5;
+    --under: #e66767;
+    --over: #3987e5;
+  }
+}
+
+/* Prose in the sans; headings in the serif. Figures (KPIs, charts) stay sans. */
+body {
+  font: 16px/1.6 var(--sans-serif);
+}
+h1,
+h2:not(.card h2),
+h3:not(.card h3) {
+  font-family: var(--serif);
+  letter-spacing: -0.01em;
+}
+#observablehq-main h1 {
+  font-size: clamp(30px, 5vw, 42px);
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+}
+#observablehq-main > h2 {
+  margin-top: 2.5rem;
+  font-size: 24px;
+}
+p,
+li {
+  text-wrap: pretty;
+}
+.lede {
+  font-size: 1.15rem;
+  max-width: 52rem;
+  color: var(--theme-foreground-muted);
+}
+
+/* Numbers that line up in columns use tabular figures; big standalone values
+   keep proportional figures (they read tighter at display sizes). */
+table,
+svg[class^="plot"] text,
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Cards: a touch more air, no heavy chrome. */
+.card {
+  border-radius: 10px;
+  padding: 1.1rem 1.2rem;
+}
+.card h2 {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+.card p {
+  margin: 0.35rem 0 0;
+}
+.card .big {
+  display: block;
+  margin: 0.15rem 0 0.1rem;
+  /* Values wear the text colour unless they encode a direction. */
+  color: var(--theme-foreground);
+}
+.card .big.under {
+  color: var(--under);
+}
+.card .big.over {
+  color: var(--over);
+}
+.muted {
+  color: var(--theme-foreground-muted);
+}
+.small {
+  font-size: 0.85rem;
+}
+
+/* Cards that open a page: lift on hover, and an arrow on the title that slides.
+   `a[href]` in the selector outranks Framework's link colour. */
+a.card-link[href] {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+  transition: border-color 150ms, transform 150ms, box-shadow 150ms;
+}
+.card-link:hover {
+  border-color: var(--theme-foreground-focus);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--theme-foreground) 18%, transparent);
+}
+.card-link:focus-visible {
+  outline: 2px solid var(--theme-foreground-focus);
+  outline-offset: 2px;
+}
+.card-link :is(h2, h3)::after {
+  content: "→";
+  display: inline-block;
+  margin-left: 0.35em;
+  color: var(--theme-foreground-focus);
+  transition: transform 150ms;
+}
+.card-link:hover :is(h2, h3)::after {
+  transform: translateX(3px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .card-link,
+  .card-link :is(h2, h3)::after {
+    transition: none;
+  }
+  .card-link:hover {
+    transform: none;
+  }
+}
+
+/* Framework's grid gives every row the tallest card's height; once the columns
+   collapse on phones that leaves big empty gaps, so let rows size to content. */
+@media (max-width: 640px) {
+  .grid {
+    grid-auto-rows: auto;
+  }
+}
+
+/* Sidebar title: Framework pins the close (toggle) button over the right edge
+   of the title link, and our title is long enough to run underneath it. Keep a
+   gutter for the button and let the title wrap onto two lines instead. */
+#observablehq-sidebar > ol:first-child > li > a {
+  height: auto;
+  min-height: calc(var(--observablehq-header-height) - 1rem);
+  padding-right: 2.75rem;
+  line-height: 1.25;
+}
+
+/* Sidebar open/close buttons: Framework draws them in the faint grey; a
+   stronger grey makes them easier to spot. */
+#observablehq-sidebar-toggle,
+#observablehq-sidebar-close {
+  color: var(--theme-foreground-alt);
+}
+
+/* Markdown tables and Inputs.table cells can hold long API names and URLs;
+   let them break so tables fit on phones instead of scrolling the page. */
+#observablehq-main td,
+#observablehq-main th {
+  overflow-wrap: anywhere;
+}
+
+/* Chart legends built in HTML (swatch + label), next to a Plot chart. */
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  font-size: 0.85rem;
+  color: var(--theme-foreground-muted);
+}

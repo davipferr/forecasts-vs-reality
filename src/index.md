@@ -10,17 +10,29 @@ toc: false
 import {diff, rows, value} from "./components/format.js";
 import {indicatorPicker} from "./components/indicator.js";
 import {insights} from "./components/insights.js";
+import {palette} from "./components/palette.js";
+import {miniColumns} from "./components/charts.js";
 
 const meta = await FileAttachment("data/indicators.json").json();
 const stats = rows(await FileAttachment("data/horizon-stats.parquet").parquet());
+const pal = palette(dark);
 ```
 
 <div class="grid grid-cols-4">${meta.indicators.map((ind) => html`<a class="card card-link" href="./year?i=${ind.id}">
     <h2>${ind.name}</h2>
     <span class="big">${diff(ind.headline.mae, ind.unit, false)}</span>
     <p class="muted">average miss one year ahead (${ind.headline.first}–${ind.headline.last}). Too ${ind.headline.under >= ind.headline.over ? `low in ${ind.headline.under}` : `high in ${ind.headline.over}`} of ${ind.headline.years} years.</p>
+    ${resize((width) => miniColumns(ind.yearAhead, {
+      width,
+      x: "year",
+      y: "err",
+      fill: (d) => (d.err < 0 ? pal.diverging.neg : pal.diverging.pos),
+      title: (d) => `${d.year}: forecast ${d.err < 0 ? "too low" : "too high"} by ${diff(d.err, ind.unit, false)}`
+    }))}
   </a>`)}
 </div>
+
+<p class="muted small">Columns: each year's miss one year ahead, <span style="color: var(--under)">below zero when the forecast was too low</span>, <span style="color: var(--over)">above when too high</span>.</p>
 
 ## What the numbers say
 
@@ -67,12 +79,3 @@ const cards = insights(ind, stats.filter((d) => d.indicator === id));
 </div>
 
 <p class="muted small">Latest survey: ${meta.indicators[0].lastSurvey}. Data generated ${new Date(meta.generatedAt).toLocaleString("en", {dateStyle: "medium", timeStyle: "short"})}.</p>
-
-<style>
-.lede { font-size: 1.15rem; max-width: 52rem; color: var(--theme-foreground-muted); }
-.card-link { display: block; text-decoration: none; color: inherit; transition: border-color 150ms; }
-.card-link:hover { border-color: var(--theme-foreground-focus); }
-.big { font-size: 2rem; font-weight: 700; line-height: 1.2; font-variant-numeric: tabular-nums; }
-.card p { margin: 0.35rem 0 0; }
-.small { font-size: 0.85rem; }
-</style>

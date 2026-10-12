@@ -4,13 +4,19 @@ Several loaders need the same tables (e.g. the scored monthly cells feed both
 ``monthly.parquet`` and ``horizon-stats.parquet``), so each frame is built once
 and reused for ``max_age``. Every frame covers all four indicators, keyed by an
 ``indicator`` column.
+
+File names carry a hash of the ``pipeline`` source, so editing any parsing or
+scoring code invalidates every memoised frame, including ones restored from a CI
+cache, which may be younger than ``max_age`` but built by older code.
 """
 
 from __future__ import annotations
 
+import hashlib
 import time
 from collections.abc import Callable
 from datetime import date, timedelta
+from pathlib import Path
 
 import polars as pl
 
@@ -21,8 +27,21 @@ from .indicators import INDICATORS, goals_frame
 FRAMES = CACHE_DIR / "frames"
 
 
+def _code_version() -> str:
+    """Short hash of every module in this package (line endings normalised, so a
+    Windows checkout and CI agree)."""
+    h = hashlib.sha256()
+    for src in sorted(Path(__file__).parent.glob("*.py")):
+        h.update(src.name.encode())
+        h.update(src.read_bytes().replace(b"\r\n", b"\n"))
+    return h.hexdigest()[:12]
+
+
+CODE_VERSION = _code_version()
+
+
 def memo(name: str, build: Callable[[], pl.DataFrame], max_age: timedelta = timedelta(hours=12)) -> pl.DataFrame:
-    path = FRAMES / f"{name}.parquet"
+    path = FRAMES / f"{name}-{CODE_VERSION}.parquet"
     if path.exists() and time.time() - path.stat().st_mtime < max_age.total_seconds():
         return pl.read_parquet(path)
     t0 = time.time()
@@ -31,6 +50,11 @@ def memo(name: str, build: Callable[[], pl.DataFrame], max_age: timedelta = time
     tmp = path.with_suffix(".parquet.part")
     df.write_parquet(tmp)
     tmp.replace(path)
+    # Drop copies built by other code versions (and the old unversioned name).
+    # The 12-hex-digit suffix keeps "monthly" from matching e.g. "monthly_extra".
+    for old in [*FRAMES.glob(f"{name}-" + "[0-9a-f]" * 12 + ".parquet"), FRAMES / f"{name}.parquet"]:
+        if old != path:
+            old.unlink(missing_ok=True)
     log(f"frame {name}: {df.height:,} rows in {time.time() - t0:.1f}s")
     return df
 
