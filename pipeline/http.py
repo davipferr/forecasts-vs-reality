@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import atexit
 import hashlib
+import json
 import os
 import sys
 import time
@@ -59,6 +60,18 @@ def _get_client() -> httpx.Client:
     return _client
 
 
+class BadBody(Exception):
+    """A 200 response whose body isn't JSON."""
+
+
+def _is_json(data: bytes) -> bool:
+    try:
+        json.loads(data)
+    except ValueError:
+        return False
+    return True
+
+
 def fetch(
     url: str,
     *,
@@ -67,10 +80,18 @@ def fetch(
     retries: int = 5,
     timeout: float = 300.0,
 ) -> bytes:
-    """GET ``url`` and return the body, using the disk cache when fresh. ``max_age=None`` caches forever."""
+    """GET ``url`` and return the body, using the disk cache when fresh. ``max_age=None`` caches forever.
+
+    Every API used here answers JSON. SGS sometimes answers 200 with an empty body
+    or an HTML "Requisição inválida" page, which goes away on retry, so a non-JSON
+    body is retried and never cached.
+    """
     path = _cache_path(url, params)
     if path.exists() and (max_age is None or time.time() - path.stat().st_mtime < max_age.total_seconds()):
-        return path.read_bytes()
+        data = path.read_bytes()
+        if _is_json(data):
+            return data
+        log(f"  discarding invalid cached response for {url}")
 
     full = full_url(url, params)
     delay = 2.0
@@ -83,10 +104,12 @@ def fetch(
                 # Other 4xx won't get better on retry.
                 raise RuntimeError(f"{resp.status_code} for {full}: {resp.text[:300]}")
             data = resp.content
+            if not _is_json(data):
+                raise BadBody(f"non-JSON body ({resp.headers.get('content-type')}, {len(data)} bytes): {data[:100]!r}")
             break
-        except (httpx.TransportError, httpx.HTTPStatusError) as exc:
+        except (httpx.TransportError, httpx.HTTPStatusError, BadBody) as exc:
             if attempt == retries:
-                raise
+                raise RuntimeError(f"{full}: {exc}") from exc
             log(f"  retry {attempt}/{retries} for {url} in {delay:.0f}s ({exc})")
             time.sleep(delay)
             delay *= 2
