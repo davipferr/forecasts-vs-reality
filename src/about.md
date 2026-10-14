@@ -96,7 +96,7 @@ Every build publishes a manifest with the pipeline code version, when each API r
 const manifest = await FileAttachment("data/manifest.json").json();
 ```
 
-<p class="muted">Pipeline code: <code>${manifest.pipeline_code}</code>${manifest.commit ? html` · commit <a href=${`https://github.com/davipferr/inflation-forecasts-vs-reality/commit/${manifest.commit}`}><code>${manifest.commit.slice(0, 7)}</code></a>` : ""}.</p>
+<p class="muted">Pipeline code: <code>${manifest.pipeline_code}</code>${manifest.commit ? html` · commit <a href=${`https://github.com/davipferr/forecasts-vs-reality/commit/${manifest.commit}`}><code>${manifest.commit.slice(0, 7)}</code></a>` : ""}.</p>
 
 ```js
 Inputs.table(manifest.sources, {

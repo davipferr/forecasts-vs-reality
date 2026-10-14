@@ -25,7 +25,7 @@ import httpx
 
 ROOT = Path(__file__).resolve().parents[1]
 CACHE_DIR = Path(os.environ.get("IFR_CACHE_DIR", ROOT / "data_cache"))
-USER_AGENT = "inflation-forecasts-vs-reality/0.1 (build-time data loader; python-httpx)"
+USER_AGENT = "forecasts-vs-reality/0.1 (build-time data loader; python-httpx)"
 
 # Rate limiting and transient server errors are worth retrying.
 RETRY_STATUS = {429, 500, 502, 503, 504}
