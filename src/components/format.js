@@ -1,12 +1,13 @@
-// Formatting for rates (%) and the exchange rate (R$/US$).
+// Formatting for rates and shares (%, % of GDP) and the exchange rate (R$/US$).
 
 const fixed = (x, digits) => x.toLocaleString("en", {minimumFractionDigits: digits, maximumFractionDigits: digits});
+const isMoney = (unit) => unit.startsWith("R$");
 
 /** "4.50%" or "R$ 5.45"; `short` drops trailing zeros (axis ticks). */
 export function value(x, unit, short = false) {
   if (x == null || Number.isNaN(x)) return "–";
   const s = short ? x.toLocaleString("en", {maximumFractionDigits: 2}) : fixed(x, 2);
-  return unit === "%" ? `${s}%` : `R$ ${s}`;
+  return isMoney(unit) ? `R$ ${s}` : `${s}%`;
 }
 
 /** A difference: "−1.50 pp" for rates, "+R$ 0.40" for FX. `signed = false` gives the magnitude. */
@@ -14,11 +15,14 @@ export function diff(d, unit, signed = true) {
   if (d == null || Number.isNaN(d)) return "–";
   const abs = fixed(Math.abs(d), 2);
   const sign = !signed ? "" : d > 0.0049 ? "+" : d < -0.0049 ? "−" : "";
-  return unit === "%" ? `${sign}${abs} pp` : `${sign}R$ ${abs}`;
+  return isMoney(unit) ? `${sign}R$ ${abs}` : `${sign}${abs} pp`;
 }
 
 /** Unit for differences, for axis labels. */
-export const diffUnit = (unit) => (unit === "%" ? "pp" : "R$");
+export const diffUnit = (unit) => (isMoney(unit) ? "R$" : "pp");
+
+/** "62%" for a share in [0, 1]. */
+export const pct = (x) => (x == null || Number.isNaN(x) ? "–" : `${Math.round(x * 100)}%`);
 
 /** "in December", "1 year ahead", "2 years 3 months ahead", "1 month after the year ended". */
 export function horizon(h) {

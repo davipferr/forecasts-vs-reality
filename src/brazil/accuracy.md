@@ -7,12 +7,13 @@ title: Accuracy by horizon
 How wrong is the consensus, depending on how long before the end of the target year it was made? Computed over every year whose outcome is known, from the last survey of each month.
 
 ```js
-import {diff, diffUnit, lowerFirst, rows} from "./components/format.js";
-import {indicatorPicker} from "./components/indicator.js";
-import {errorLimit, errorScale, palette} from "./components/palette.js";
+import {diff, diffUnit, lowerFirst, rows} from "../components/format.js";
+import {indicatorPicker} from "../components/indicator.js";
+import {palette} from "../components/palette.js";
+import {biasBars, horizonLines} from "../components/forecast-charts.js";
 
-const meta = await FileAttachment("data/indicators.json").json();
-const allStats = rows(await FileAttachment("data/horizon-stats.parquet").parquet());
+const meta = await FileAttachment("../data/indicators.json").json();
+const allStats = rows(await FileAttachment("../data/horizon-stats.parquet").parquet());
 const pal = palette(dark);
 ```
 
@@ -32,23 +33,7 @@ const x = {
   tickFormat: (h) => (h === 0 ? "Dec" : String(h))
 };
 
-function lines(width, series) {
-  const data = series.flatMap(({name, key}) => stats.filter((d) => d[key] != null).map((d) => ({h: d.h, series: name, value: d[key]})));
-  return Plot.plot({
-    width,
-    height: 320,
-    marginLeft: 48,
-    x,
-    y: {grid: true, zero: true, label: `Average miss (${diffUnit(u)})`},
-    color: {domain: series.map((s) => s.name), range: series.map((s) => s.color), legend: true},
-    marks: [
-      Plot.lineY(data, {x: "h", y: "value", stroke: "series", strokeWidth: (d) => (d.series === series[0].name ? 2.4 : 1.5)}),
-      Plot.ruleX(data, Plot.pointerX({x: "h", stroke: "var(--theme-foreground-faint)"})),
-      Plot.dot(data, Plot.pointerX({x: "h", y: "value", fill: "series", r: 3})),
-      Plot.tip(data, Plot.pointerX({x: "h", y: "value", title: (d) => `${d.series}\n${d.h === 0 ? "In December" : `${d.h} months ahead`}: ${diff(d.value, u, false)}`}))
-    ]
-  });
-}
+const lines = (width, series) => horizonLines(stats, series, {width, unit: u, x});
 
 const benchmarks = [
   {name: "Focus consensus", key: "mae", color: pal.consensus},
@@ -67,19 +52,7 @@ const hasTop5 = stats.some((d) => d.t5_mae != null);
   <div class="card">
     <h2>Bias: the average error</h2>
     <h3>Below zero: on average the market forecast too low</h3>
-    ${resize((width) => Plot.plot({
-      width,
-      height: 320,
-      marginLeft: 48,
-      x: {...x, type: "band", padding: 0.15},
-      y: {grid: true, label: `Average error (${diffUnit(u)})`},
-      color: {...errorScale(pal, errorLimit(stats.map((d) => d.bias), 1), null), legend: false},
-      marks: [
-        Plot.barY(stats, {x: "h", y: "bias", fill: "bias"}),
-        Plot.ruleY([0]),
-        Plot.tip(stats, Plot.pointerX({x: "h", y: "bias", title: (d) => `${d.h === 0 ? "In December" : `${d.h} months ahead`}\nAverage error: ${diff(d.bias, u)}\nOver ${d.n} years`}))
-      ]
-    }))}
+    ${resize((width) => biasBars(stats, {width, pal, unit: u, x}))}
   </div>
 </div>
 

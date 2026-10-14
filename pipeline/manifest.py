@@ -29,7 +29,7 @@ from pathlib import Path
 
 import polars as pl
 
-from . import actuals, bcb, forecasts, frames
+from . import actuals, bcb, curve, forecasts, frames, imf, spf, treasury
 from .http import ROOT, cached_path, full_url
 from .indicators import INDICATORS
 
@@ -47,9 +47,9 @@ def _iso(ts: float) -> str:
     return datetime.fromtimestamp(ts, timezone.utc).isoformat(timespec="seconds")
 
 
-def _source(name: str, url: str, params: dict | None = None) -> dict:
+def _source(name: str, url: str, params: dict | None = None, fmt: str = "json") -> dict:
     """A raw response and when it entered the cache."""
-    path = cached_path(url, params)
+    path = cached_path(url, params, fmt)
     return {"name": name, "url": full_url(url, params), "downloaded_at": _iso(path.stat().st_mtime) if path else None}
 
 
@@ -63,17 +63,30 @@ def sources() -> list[dict]:
         for url, params, _ in bcb.sgs_requests(code, daily=daily):
             window = f", {params['dataInicial'][-4:]}–{params['dataFinal'][-4:]}" if daily else ""
             out.append(_source(f"SGS {code}: {name}{window}", url, params))
+    out.append(_source("IMF WEO (MFPD): dataset metadata", imf.MENDELEY))
+    for kind, f in imf.files().items():
+        out.append(_source(f"IMF WEO (MFPD): {f.get('filename', kind)}", imf.file_url(f), fmt="xlsx"))
+    out.append(_source("SPF: median forecasts", spf.SPF, fmt="xlsx"))
+    for prefix, name in spf.RTDSM_FILES.items():
+        out.append(_source(f"Real-time data: {prefix}", spf.RTDSM.format(name=name), fmt="xlsx"))
+    out.append(_source("Fed zero-coupon yield curve (GSW)", curve.GSW, fmt="csv"))
+    out.append(_source("ACM term premium (NY Fed)", curve.ACM, fmt="xls"))
+    out.append(_source("NBER business cycle dates", curve.NBER))
+    for year in range(treasury.FIRST_YEAR, datetime.now().year + 1):
+        out.append(_source(f"Treasury yield curve {year}", *treasury.request(year), fmt="csv"))
     return out
 
 
-def _table(df: pl.DataFrame, *, counts: dict[str, pl.Expr] | None = None) -> dict:
-    """Row count and columns, plus per-indicator counts (``{name: expr}``, each
-    aggregated per indicator; ``rows`` is always included)."""
+def _table(df: pl.DataFrame, *, counts: dict[str, pl.Expr] | None = None, by: str | None = "indicator") -> dict:
+    """Row count and columns, plus counts per ``by`` (``{name: expr}``, each
+    aggregated per group; ``rows`` is always included)."""
     out: dict = {"rows": df.height, "columns": df.columns}
+    if by is None:
+        return out
     aggs = {"rows": pl.len(), **(counts or {})}
-    per = df.group_by("indicator").agg(**aggs).sort("indicator")
+    per = df.group_by(by).agg(**aggs).sort(by)
     for name in aggs:
-        out[f"{name}_by_indicator"] = {r["indicator"]: int(r[name]) for r in per.iter_rows(named=True)}
+        out[f"{name}_by_{by}"] = {str(r[by]): int(r[name]) for r in per.iter_rows(named=True)}
     return out
 
 
@@ -89,6 +102,17 @@ def build() -> dict:
         h = forecasts.headline(m.filter(indicator=ind.id))
         headline[ind.id] = {k: round(v, 4) if isinstance(v, float) else v for k, v in h.items() if k in ("years", "mae", "bias", "under", "over", "naiveMae", "beatNaive")}
 
+    imf_cells = frames.imf_cells()
+    spf_m = frames.spf_monthly()
+    tests = frames.forward_tests()
+    for ind in spf.INDICATORS:
+        h = forecasts.headline(spf_m.filter(indicator=ind.id), h=13)
+        headline[f"spf_{ind.id}"] = {k: round(v, 4) if isinstance(v, float) else v for k, v in h.items() if k in ("years", "mae", "bias", "naiveMae", "beatNaive")}
+    for row in imf.group_stats(imf_cells).filter(pl.col("h") == 14, pl.col("set").is_in(["all", "adv", "emde"])).iter_rows(named=True):
+        headline[f"imf_{row['set']}_{row['indicator']}"] = {"mdae": round(row["mdae"], 4), "over": round(row["over"], 4)}
+    for row in curve.forward_stats(tests).filter(sample="1990").iter_rows(named=True):
+        headline[f"forward_{row['k']}y"] = {"bias": round(row["bias"], 4), "mae": round(row["mae"], 4), "slope": round(row["slope"], 4)}
+
     last_survey = daily.group_by("indicator").agg(pl.col("date").max()).sort("indicator")
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -102,6 +126,10 @@ def build() -> dict:
             "outcomes": _table(res, counts={"known_outcomes": pl.col("actual").is_not_null().sum()}),
             "known": _table(known),
             "monthly": _table(m, counts={"scored_cells": pl.col("err").is_not_null().sum()}),
+            "imf_cells": _table(imf_cells, counts={"scored_cells": pl.col("err").is_not_null().sum(), "countries": pl.col("iso3").n_unique()}),
+            "spf_monthly": _table(spf_m, counts={"scored_cells": pl.col("err").is_not_null().sum()}),
+            "curve_monthly": _table(frames.curve_monthly(), by=None),
+            "forward_tests": _table(tests, counts={"scored": pl.col("err").is_not_null().sum()}, by="k"),
         },
         "headline": headline,
     }

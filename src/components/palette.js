@@ -23,7 +23,9 @@ export function palette(dark = false) {
       mid: dark ? "#383835" : "#f0efec",
       pos: dark ? "#3987e5" : "#2a78d6"
     },
-    noData: dark ? "#2b2b29" : "#e8e7e3"
+    noData: dark ? "#2b2b29" : "#e8e7e3",
+    // Magnitude (e.g. the typical miss): one hue, receding toward the surface near zero.
+    sequential: dark ? ["#184f95", "#3987e5", "#b7d3f6"] : ["#cde2fb", "#3987e5", "#0d366b"]
   };
 }
 
@@ -43,4 +45,9 @@ export function errorScale(pal, limit, label) {
 export function errorLimit(errors, q = 0.9) {
   const abs = errors.filter((e) => e != null).map(Math.abs);
   return abs.length ? Math.max(d3.quantile(abs, q), 1e-6) : 1;
+}
+
+/** Plot colour scale for a magnitude in [0, `limit`] (clamped). */
+export function magnitudeScale(pal, limit, label) {
+  return {type: "linear", domain: [0, limit / 2, limit], range: pal.sequential, interpolate: "rgb", clamp: true, legend: true, label};
 }

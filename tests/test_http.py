@@ -65,7 +65,7 @@ def test_non_json_body_is_retried_and_never_cached(mock_client):
     assert [r.url.path for r in seen].count("/sgs") == 3
 
     responses["/down"] = [httpx.Response(200, content=b"")] * 5
-    with pytest.raises(RuntimeError, match="non-JSON"):
+    with pytest.raises(RuntimeError, match="not json"):
         http.fetch("https://example.test/down")
     assert http.cached_path("https://example.test/down") is None
 
@@ -75,3 +75,18 @@ def test_invalid_cached_body_is_refetched(mock_client):
     http._cache_path("https://example.test/old", None).write_bytes(b"")
     assert http.fetch("https://example.test/old", max_age=None) == b"[]"
     assert len(seen) == 1
+
+
+def test_other_formats_reject_html_error_pages(mock_client):
+    # imf.org and treasury.gov answer bot walls as HTML; never cache one as a spreadsheet or CSV.
+    seen, responses = mock_client
+    page = httpx.Response(200, text="<HTML><HEAD><TITLE>Access Denied</TITLE></HEAD></HTML>")
+    responses["/book.xlsx"] = [page, httpx.Response(200, content=b"PKrest")]
+    assert http.fetch("https://example.test/book.xlsx", fmt="xlsx", max_age=None) == b"PKrest"
+    assert http.cached_path("https://example.test/book.xlsx", fmt="xlsx").suffix == ".xlsx"
+
+    responses["/rates.csv"] = [page] * 5
+    with pytest.raises(RuntimeError, match="not csv"):
+        http.fetch("https://example.test/rates.csv", fmt="csv")
+    assert http.cached_path("https://example.test/rates.csv", fmt="csv") is None
+    assert seen[-1].headers["accept"].startswith("text/csv")

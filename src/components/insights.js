@@ -12,7 +12,7 @@ function compare(a, b) {
  * Plain-English findings for one indicator, all computed from its own numbers.
  * Returns [{stat, text}] for the headline cards.
  */
-export function insights(ind, stats) {
+export function insights(ind, stats, {made = "made in December for the next year", benchmarkName = "the naive guess", h12 = 12} = {}) {
   const h = ind.headline;
   if (!h?.years) return [];
   const u = ind.unit;
@@ -20,7 +20,7 @@ export function insights(ind, stats) {
   const naive = lowerFirst(ind.naiveLabel);
   const out = [];
 
-  out.push({stat: d(h.mae), text: `Average miss of the consensus made in December for the next year, ${h.first}–${h.last}.`});
+  out.push({stat: d(h.mae), text: `Average miss of the consensus ${made}, ${h.first}–${h.last}.`});
 
   const low = h.under >= h.over;
   out.push({
@@ -39,7 +39,7 @@ export function insights(ind, stats) {
         : v === "same"
           ? `, and on average it's no more accurate: ${d(h.mae)} vs ${d(h.naiveMae)}.`
           : `, which is more accurate on average: ${d(h.naiveMae)} vs ${d(h.mae)}.`;
-    out.push({stat: `${h.beatNaive} of ${h.years}`, text: `years the consensus beat the naive guess (${naive})${tail}`});
+    out.push({stat: `${h.beatNaive} of ${h.years}`, text: `years the consensus beat ${benchmarkName} (${naive})${tail}`});
   }
 
   const far = stats.find((s) => s.h === 36);
@@ -56,7 +56,7 @@ export function insights(ind, stats) {
     });
   }
 
-  const t5 = stats.find((s) => s.h === 12 && s.t5_mae != null && s.cons_t5_mae != null);
+  const t5 = stats.find((s) => s.h === h12 && s.t5_mae != null && s.cons_t5_mae != null);
   if (t5) {
     const v = compare(t5.t5_mae, t5.cons_t5_mae);
     const verb = v === "better" ? "did better" : v === "same" ? "were no better" : "did worse";

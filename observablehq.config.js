@@ -4,9 +4,38 @@ export default {
   root: "src",
   lang: "en",
   pages: [
-    {name: "Forecast map", path: "/map"},
-    {name: "One year in detail", path: "/year"},
-    {name: "Accuracy by horizon", path: "/accuracy"},
+    {
+      name: "Brazil: the Focus survey",
+      pages: [
+        {name: "Overview", path: "/brazil/"},
+        {name: "Forecast map", path: "/brazil/map"},
+        {name: "One year in detail", path: "/brazil/year"},
+        {name: "Accuracy by horizon", path: "/brazil/accuracy"}
+      ]
+    },
+    {
+      name: "World: the IMF",
+      pages: [
+        {name: "World map", path: "/world/"},
+        {name: "One country", path: "/world/country"},
+        {name: "Optimism and emerging markets", path: "/world/groups"}
+      ]
+    },
+    {
+      name: "United States: professional forecasters",
+      pages: [
+        {name: "Overview", path: "/us/"},
+        {name: "Forecast map", path: "/us/map"},
+        {name: "Accuracy by horizon", path: "/us/accuracy"}
+      ]
+    },
+    {
+      name: "Bond market",
+      pages: [
+        {name: "Do forward rates predict?", path: "/bonds/"},
+        {name: "Yield curve and recessions", path: "/bonds/recessions"}
+      ]
+    },
     {name: "SQL console", path: "/sql"},
     {name: "About the data", path: "/about"}
   ],
@@ -18,7 +47,7 @@ export default {
   ].join("\n"),
   // Theme imports (light/dark) + typography live in src/style.css.
   style: "style.css",
-  footer: "Data: Banco Central do Brasil (Focus survey via Olinda, time series via SGS). Processed at build time with Polars. Not affiliated with the BCB.",
+  footer: "Data: Banco Central do Brasil, IMF World Economic Outlook (via the MFPD panel on Mendeley Data), Federal Reserve Bank of Philadelphia, Federal Reserve Board, Federal Reserve Bank of New York, US Treasury, NBER. Processed at build time with Polars. Not affiliated with any of them.",
   toc: true,
   search: true,
   // Python loaders run inside the uv-managed environment, so `import pipeline`

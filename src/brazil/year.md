@@ -7,17 +7,17 @@ title: One year in detail
 How the consensus for a single year moved, week by week, from the first survey that asked about it until the outcome was known.
 
 ```js
-import {day, diff, diffUnit, lowerFirst, rows, value} from "./components/format.js";
-import {indicatorPicker} from "./components/indicator.js";
-import {errorLimit, errorScale, palette} from "./components/palette.js";
-import {eventMarks} from "./components/charts.js";
+import {day, diff, diffUnit, lowerFirst, rows, value} from "../components/format.js";
+import {indicatorPicker} from "../components/indicator.js";
+import {errorLimit, errorScale, palette} from "../components/palette.js";
+import {eventMarks} from "../components/charts.js";
 
-const meta = await FileAttachment("data/indicators.json").json();
-const forecasts = rows(await FileAttachment("data/forecasts.parquet").parquet());
-const top5 = rows(await FileAttachment("data/top5.parquet").parquet());
-const monthly = rows(await FileAttachment("data/monthly.parquet").parquet());
-const outcomes = rows(await FileAttachment("data/outcomes.parquet").parquet());
-const known = rows(await FileAttachment("data/known.parquet").parquet());
+const meta = await FileAttachment("../data/indicators.json").json();
+const forecasts = rows(await FileAttachment("../data/forecasts.parquet").parquet());
+const top5 = rows(await FileAttachment("../data/top5.parquet").parquet());
+const monthly = rows(await FileAttachment("../data/monthly.parquet").parquet());
+const outcomes = rows(await FileAttachment("../data/outcomes.parquet").parquet());
+const known = rows(await FileAttachment("../data/known.parquet").parquet());
 const pal = palette(dark);
 ```
 

@@ -2,8 +2,8 @@
 
 Several loaders need the same tables (e.g. the scored monthly cells feed both
 ``monthly.parquet`` and ``horizon-stats.parquet``), so each frame is built once
-and reused for ``max_age``. Every frame covers all four indicators, keyed by an
-``indicator`` column.
+and reused for ``max_age``. The Brazil frames cover all four Focus indicators,
+keyed by an ``indicator`` column; the IMF, SPF and bond-market frames follow.
 
 File names carry a hash of the ``pipeline`` source, so editing any parsing or
 scoring code invalidates every memoised frame, including ones restored from a CI
@@ -20,7 +20,7 @@ from pathlib import Path
 
 import polars as pl
 
-from . import bcb, forecasts
+from . import bcb, curve, forecasts, imf, spf
 from .http import CACHE_DIR, log
 from .indicators import INDICATORS, goals_frame
 
@@ -130,3 +130,42 @@ def monthly() -> pl.DataFrame:
         return pl.concat([p.select(cols) for p in parts]).sort("indicator", "target", "h")
 
     return memo("monthly", build)
+
+
+# ------------------------------------------------------------------- IMF WEO
+
+
+def imf_cells() -> pl.DataFrame:
+    """Every WEO forecast since 1990 (196 countries + 4 aggregates × 3 indicators), scored."""
+    return memo("imf_cells", imf.cells)
+
+
+def imf_names() -> pl.DataFrame:
+    return memo("imf_names", imf.names)
+
+
+# ------------------------------------------------------------------- SPF
+
+
+def spf_monthly() -> pl.DataFrame:
+    """Every SPF annual forecast (median), scored against real-time outcomes: one row per indicator × target × survey."""
+    return memo("spf_monthly", spf.monthly)
+
+
+# ------------------------------------------------------------------- bond market
+
+
+def curve_monthly() -> pl.DataFrame:
+    return memo("curve_monthly", curve.monthly)
+
+
+def forward_tests() -> pl.DataFrame:
+    def build() -> pl.DataFrame:
+        return curve.forward_tests(month_end_curve())
+
+    return memo("forward_tests", build)
+
+
+def month_end_curve() -> pl.DataFrame:
+    """Zero yields y1..y10 at each month end."""
+    return memo("curve_month_end", lambda: curve.month_end(curve.gsw_daily()))

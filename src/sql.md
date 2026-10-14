@@ -17,7 +17,15 @@ const db = DuckDBClient.of({
   monthly: FileAttachment("data/monthly.parquet").parquet(),
   outcomes: FileAttachment("data/outcomes.parquet").parquet(),
   known: FileAttachment("data/known.parquet").parquet(),
-  horizon_stats: FileAttachment("data/horizon-stats.parquet").parquet()
+  horizon_stats: FileAttachment("data/horizon-stats.parquet").parquet(),
+  imf_cells: FileAttachment("data/world/cells.parquet").parquet(),
+  imf_countries: FileAttachment("data/world/countries.parquet").parquet(),
+  imf_country_stats: FileAttachment("data/world/country-stats.parquet").parquet(),
+  spf_monthly: FileAttachment("data/us/monthly.parquet").parquet(),
+  spf_horizon_stats: FileAttachment("data/us/horizon-stats.parquet").parquet(),
+  curve: FileAttachment("data/bonds/curve.parquet").parquet(),
+  forward_tests: FileAttachment("data/bonds/forward-tests.parquet").parquet(),
+  forward_stats: FileAttachment("data/bonds/forward-stats.parquet").parquet()
 });
 ```
 
@@ -53,7 +61,28 @@ ORDER BY indicator, target`],
        round(median - lag(median) OVER (ORDER BY date), 2) AS weekly_change
 FROM forecasts
 WHERE indicator = 'ipca' AND target = 2002
-ORDER BY date`]
+ORDER BY date`],
+  ["IMF: the most over-optimistic growth forecasts, a year ahead", `SELECT c.name, f.target, f.forecast, f.actual, round(f.forecast - f.actual, 1) AS miss
+FROM imf_cells f JOIN imf_countries c USING (iso3)
+WHERE f.indicator = 'gdp' AND f.h = 14 AND f.actual IS NOT NULL AND c."group" <> 'agg'
+ORDER BY miss DESC
+LIMIT 15`],
+  ["IMF vs. Focus: Brazil's GDP, October of the year before", `SELECT i.target, i.forecast AS imf, m.median AS focus, i.actual AS imf_outcome, m.actual AS ibge_outcome
+FROM imf_cells i JOIN monthly m ON m.indicator = 'gdp' AND m.target = i.target AND m.h = i.h
+WHERE i.iso3 = 'BRA' AND i.indicator = 'gdp' AND i.h = 14
+ORDER BY i.target`],
+  ["SPF: years the 10-year yield forecast lost to \"no change\"", `SELECT target, median AS forecast, naive AS no_change, round(actual, 2) AS actual
+FROM spf_monthly
+WHERE indicator = 'tbond' AND h = 13 AND abs(naive_err) < abs(err)
+ORDER BY target`],
+  ["Bond market: forward rate vs. the 1-year rate two years later, by decade", `SELECT 10 * (year(month) // 10) AS decade,
+       count(*) AS months,
+       round(avg(err), 2) AS avg_forward_minus_realised,
+       round(avg(abs(err)), 2) AS forward_mae,
+       round(avg(abs(naive_err)), 2) AS no_change_mae
+FROM forward_tests
+WHERE k = 2 AND realised IS NOT NULL
+GROUP BY decade ORDER BY decade`]
 ]);
 const example = view(Inputs.select(examples, {label: "Example"}));
 ```
@@ -81,7 +110,7 @@ result.error ? null : Inputs.table(result.rows, {rows: 20, format: {target: Stri
 ## Tables
 
 ```js
-const tables = ["forecasts", "top5", "monthly", "outcomes", "known", "horizon_stats"];
+const tables = ["forecasts", "top5", "monthly", "outcomes", "known", "horizon_stats", "imf_cells", "imf_countries", "imf_country_stats", "spf_monthly", "spf_horizon_stats", "curve", "forward_tests", "forward_stats"];
 const schema = await Promise.all(
   tables.map(async (t) => ({
     table: t,
@@ -96,5 +125,6 @@ Inputs.table(schema, {format: {rows: (n) => n.toLocaleString("en")}, width: {tab
 ```
 
 <div class="tip">
-  <code>indicator</code> is one of <code>ipca</code>, <code>selic</code>, <code>gdp</code>, <code>fx</code>. <code>h</code> is the number of months from the survey month to December of the <code>target</code> year. Errors (<code>err</code>, <code>naive_err</code>, …) are forecast − actual: negative means the forecast was too low. <code>monthly</code> keeps the last survey of each month; <code>forecasts</code> the last of each week.
+  <p><strong>Brazil</strong> (<code>forecasts</code>, <code>top5</code>, <code>monthly</code>, <code>outcomes</code>, <code>known</code>, <code>horizon_stats</code>): <code>indicator</code> is one of <code>ipca</code>, <code>selic</code>, <code>gdp</code>, <code>fx</code>; <code>monthly</code> keeps the last Focus survey of each month, <code>forecasts</code> the last of each week. <strong>IMF</strong> (<code>imf_*</code>): one row per country (<code>iso3</code>) × indicator (<code>gdp</code>, <code>inflation</code>, <code>ca</code>) × target year × edition; compute errors as <code>forecast - actual</code>. <strong>SPF</strong> (<code>spf_*</code>): indicators <code>cpi</code>, <code>gdp</code>, <code>unemp</code>, <code>tbill</code>, <code>tbond</code>, same columns as <code>monthly</code>. <strong>Bond market</strong>: <code>curve</code> is monthly; <code>forward_tests</code> pairs the 1-year forward rate <code>k</code> years ahead with the rate that came.</p>
+  <p>Everywhere, <code>h</code> is the number of months from the forecast to December of the <code>target</code> year, and errors are forecast − actual: negative means the forecast was too low.</p>
 </div>

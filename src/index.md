@@ -4,78 +4,76 @@ toc: false
 
 # Forecasts vs. Reality
 
-<p class="lede">How good is the Brazilian market at seeing the future? Every forecast in the Banco Central's weekly <em>Focus</em> survey since 2000, for inflation, the Selic rate, GDP growth and the dollar, scored against what actually happened.</p>
+<p class="lede">How good are forecasters at seeing the future? Four of them, each scored against what actually happened and against the simplest forecast of all, "nothing changes": Brazil's market economists, the IMF, America's professional forecasters, and the bond market itself.</p>
 
 ```js
-import {diff, rows, value} from "./components/format.js";
-import {indicatorPicker} from "./components/indicator.js";
-import {insights} from "./components/insights.js";
-import {palette} from "./components/palette.js";
-import {miniColumns} from "./components/charts.js";
+import {diff, pct, rows} from "./components/format.js";
 
-const meta = await FileAttachment("data/indicators.json").json();
-const stats = rows(await FileAttachment("data/horizon-stats.parquet").parquet());
-const pal = palette(dark);
-```
-
-<div class="grid grid-cols-4">${meta.indicators.map((ind) => html`<a class="card card-link" href="./year?i=${ind.id}">
-    <h2>${ind.name}</h2>
-    <span class="big">${diff(ind.headline.mae, ind.unit, false)}</span>
-    <p class="muted">average miss one year ahead (${ind.headline.first}–${ind.headline.last}). Too ${ind.headline.under >= ind.headline.over ? `low in ${ind.headline.under}` : `high in ${ind.headline.over}`} of ${ind.headline.years} years.</p>
-    ${resize((width) => miniColumns(ind.yearAhead, {
-      width,
-      x: "year",
-      y: "err",
-      fill: (d) => (d.err < 0 ? pal.diverging.neg : pal.diverging.pos),
-      title: (d) => `${d.year}: forecast ${d.err < 0 ? "too low" : "too high"} by ${diff(d.err, ind.unit, false)}`
-    }))}
-  </a>`)}
-</div>
-
-<p class="muted small">Columns: each year's miss one year ahead, <span style="color: var(--under)">below zero when the forecast was too low</span>, <span style="color: var(--over)">above when too high</span>.</p>
-
-## What the numbers say
-
-```js
-const id = view(indicatorPicker(meta));
+const brazil = await FileAttachment("data/indicators.json").json();
+const world = rows(await FileAttachment("data/world/group-stats.parquet").parquet());
+const us = await FileAttachment("data/us/indicators.json").json();
+const fstats = rows(await FileAttachment("data/bonds/forward-stats.parquet").parquet());
+const rec = await FileAttachment("data/bonds/recessions.json").json();
 ```
 
 ```js
-const ind = meta.indicators.find((d) => d.id === id);
-const cards = insights(ind, stats.filter((d) => d.indicator === id));
+const ipca = brazil.indicators.find((d) => d.id === "ipca").headline;
+const fx = brazil.indicators.find((d) => d.id === "fx").headline;
+const gdpAll = world.find((d) => d.set === "all" && d.indicator === "gdp" && d.h === 14);
+const gdpAdv = world.find((d) => d.set === "adv" && d.indicator === "gdp" && d.h === 14);
+const gdpEmde = world.find((d) => d.set === "emde" && d.indicator === "gdp" && d.h === 14);
+const usRates = us.indicators.filter((d) => d.id === "tbill" || d.id === "tbond").map((d) => d.headline);
+const usCpi = us.indicators.find((d) => d.id === "cpi").headline;
+const fw1 = fstats.find((d) => d.sample === "1990" && d.k === 1);
+const fw3 = fstats.find((d) => d.sample === "1990" && d.k === 3);
+const sp = rec.spreads[0];
+const signalled = sp.recessions.filter((r) => r.signal != null).length;
+const falseAlarms = sp.episodes.filter((e) => e.outcome === "false alarm");
 ```
 
-<div class="grid grid-cols-3">${cards.map((c) => html`<div class="card"><span class="big">${c.stat}</span><p>${c.text}</p></div>`)}
+<div class="grid grid-cols-2">
+  <a class="card card-link" href="./brazil/">
+    <h2>Brazil: the Focus survey</h2>
+    <p class="muted">The Banco Central's weekly survey of ~100 market economists, since 2000: inflation, the Selic rate, GDP and the dollar.</p>
+    <span class="big">${ipca.under} of ${ipca.years}</span>
+    <p>years the market <strong>under-forecast inflation</strong> a year ahead. On the dollar, it is no more accurate than "the rate stays where it is" (${diff(fx.mae, "R$", false)} vs ${diff(fx.naiveMae, "R$", false)} average miss).</p>
+  </a>
+  <a class="card card-link" href="./world/">
+    <h2>World: the IMF</h2>
+    <p class="muted">Every <em>World Economic Outlook</em> since 1990, about 190 countries: growth, inflation, the current account.</p>
+    <span class="big">${pct(gdpAll.over)}</span>
+    <p>of the IMF's growth forecasts a year ahead were <strong>too optimistic</strong>. Emerging economies are harder: a typical miss of ${diff(gdpEmde.mdae, "%", false)}, vs ${diff(gdpAdv.mdae, "%", false)} for advanced ones.</p>
+  </a>
+  <a class="card card-link" href="./us/">
+    <h2>United States: professional forecasters</h2>
+    <p class="muted">The Philadelphia Fed's quarterly Survey of Professional Forecasters: inflation, GDP, unemployment, interest rates.</p>
+    <span class="big">${usRates.map((h) => `${h.beatNaive} of ${h.years}`).join(" · ")}</span>
+    <p>years the forecasters beat "no change" a year ahead for the <strong>3-month and 10-year rates</strong>. For CPI inflation: ${usCpi.beatNaive} of ${usCpi.years}.</p>
+  </a>
+  <a class="card card-link" href="./bonds/">
+    <h2>The bond market</h2>
+    <p class="muted">Forward rates as forecasts of future rates, the term premium, and the inverted yield curve as a recession signal.</p>
+    <span class="big">${diff(fw1.bias, "%")} · ${diff(fw3.bias, "%")}</span>
+    <p>average gap between forward rates and the rates that came, one and three years ahead (since 1990): mostly <strong>term premium</strong>. The inverted curve came before ${signalled} of ${sp.recessions.length} recessions since ${sp.first.slice(0, 4)}, with ${falseAlarms.length} false alarm${falseAlarms.length === 1 ? "" : "s"}${falseAlarms.length ? ` (${falseAlarms.map((e) => e.start.slice(0, 4)).join(", ")})` : ""}.</p>
+  </a>
 </div>
 
-<p class="muted small">"One year ahead" = the consensus in December of the previous year. The naive guess uses only data already published on the survey date. All numbers are recomputed from the data at every build.</p>
+## How everything is scored
 
-## Explore
-
-<div class="grid grid-cols-3">
-  <a class="card card-link" href="./map">
-    <h3>Forecast map</h3>
-    <p>Every forecast as one cell: target year across, how far ahead it was made up the side, coloured by how wrong it turned out to be.</p>
-  </a>
-  <a class="card card-link" href="./year">
-    <h3>One year in detail</h3>
-    <p>How the consensus for a single year moved, week by week, until the outcome was known, with the official target and the Top 5.</p>
-  </a>
-  <a class="card card-link" href="./accuracy">
-    <h3>Accuracy by horizon</h3>
-    <p>How the miss shrinks as the year approaches, whether the market is biased, and whether it beats simple benchmarks.</p>
-  </a>
-</div>
+- **Error** = forecast − what happened. Negative: the forecast was too low.
+- **Horizon**: months from the forecast to December of the year it's about. A forecast made in October for the next year is 14 months ahead.
+- **"Nothing changes"**: every source is compared with the naive forecast that repeats the latest published value, using only data that was public at the time.
+- **Outcomes** are the values as first settled (about a year later), not today's revised numbers, where the source allows it.
 
 <div class="grid grid-cols-2">
   <a class="card card-link" href="./sql">
     <h3>SQL console</h3>
-    <p>The same Parquet files behind the charts, queryable with SQL in your browser through DuckDB-WASM.</p>
+    <p>The Parquet files behind every chart, queryable with SQL in your browser through DuckDB-WASM.</p>
   </a>
   <a class="card card-link" href="./about">
     <h3>About the data</h3>
-    <p>Sources, definitions and caveats: which outcome each forecast is scored against, and why.</p>
+    <p>Sources, definitions, benchmarks and caveats for each section.</p>
   </a>
 </div>
 
-<p class="muted small">Latest survey: ${meta.indicators[0].lastSurvey}. Data generated ${new Date(meta.generatedAt).toLocaleString("en", {dateStyle: "medium", timeStyle: "short"})}.</p>
+<p class="muted small">All numbers are recomputed from the data at every build. Data generated ${new Date(brazil.generatedAt).toLocaleString("en", {dateStyle: "medium", timeStyle: "short"})}.</p>
